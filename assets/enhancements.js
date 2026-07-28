@@ -68,7 +68,7 @@
       const original = heading.querySelector(':scope > p');
       if (original) original.replaceWith(label); else heading.appendChild(label);
     }
-    label.textContent = `调整后计划 ${text} · 单词按实际时间另计`;
+    label.textContent = `计划 ${text} · 单词另计`;
   }
   function setupDurationEditing() {
     applySavedDurations();
@@ -76,21 +76,16 @@
       const meta = tile.querySelector('.task-meta');
       const timeText = meta?.querySelector(':scope > span');
       if (!meta || !timeText) return;
-      let button = meta.querySelector('.duration-edit');
-      if (!button) {
-        button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'duration-edit';
-        button.title = '点击调整任务时长';
-        button.setAttribute('aria-label', `调整${taskName(tile)}的时长`);
-        meta.appendChild(button);
+      timeText.classList.add('editable-time');
+      timeText.title = '点击调整任务时长';
+      if (!timeText.dataset.durationReady) {
+        timeText.dataset.durationReady = '1';
         const edit = (event) => {
           event.preventDefault();
           event.stopPropagation();
           const current = taskMinutes(tile);
           const original = Number(tile.dataset.originalMinutes || current);
-          const answer = window.prompt(`调整“${taskName(tile)}”的时长（分钟）
-填写 5–240；输入 0 恢复原时长 ${original} 分钟。`, String(current));
+          const answer = window.prompt(`调整“${taskName(tile)}”的时长（分钟）\n输入 5–240；输入 0 恢复原时长 ${original} 分钟。`, String(current));
           if (answer === null) return;
           const value = Number.parseInt(answer.trim(), 10);
           if (!Number.isFinite(value) || value < 0 || value > 240 || (value > 0 && value < 5)) {
@@ -103,10 +98,9 @@
           refreshTimes();
           updatePlanDurationLabel();
         };
-        button.addEventListener('pointerdown', (event) => { event.stopPropagation(); });
-        button.addEventListener('click', edit);
+        timeText.addEventListener('pointerdown', (event) => event.stopPropagation());
+        timeText.addEventListener('click', edit);
       }
-      button.textContent = `${taskMinutes(tile)}分钟 ✎`;
     });
 
     const tools = document.querySelector('.reorder-tools');
@@ -117,6 +111,7 @@
       reset.textContent = '恢复原时长';
       reset.addEventListener('click', (event) => {
         event.preventDefault();
+        event.stopPropagation();
         const all = durationData();
         const prefix = `${currentPlanDay()}:`;
         Object.keys(all).forEach((key) => { if (key.startsWith(prefix)) delete all[key]; });
@@ -125,7 +120,6 @@
           tile.dataset.taskMinutes = tile.dataset.originalMinutes || tile.dataset.taskMinutes;
         });
         refreshTimes();
-        setupDurationEditing();
         updatePlanDurationLabel();
       });
       tools.appendChild(reset);
@@ -152,15 +146,16 @@
       tiles.forEach((tile) => {
         const duration = taskMinutes(tile);
         const meta = tile.querySelector('.task-meta span');
-        if (meta) meta.textContent = `${fmt(cursor)}–${fmt(cursor + duration)}`;
-        const durationButton = tile.querySelector('.duration-edit');
-        if (durationButton) durationButton.textContent = `${duration}分钟 ✎`;
+        if (meta) meta.textContent = `${fmt(cursor)}–${fmt(cursor + duration)} · ${duration}分钟 ✎`;
+        const stars = tile.querySelector('.task-stars');
+        if (stars) stars.textContent = `+${Math.max(1, Math.round(duration / 30))} ✦`;
         cursor += duration;
       });
       const count = block.querySelector('.session-heading small');
       if (count) count.textContent = `${tiles.filter((t) => t.classList.contains('done')).length}/${tiles.length}`;
     });
   }
+
   function restoreOrder() {
     const saved = orderData()[currentPlanDay()];
     if (!saved?.length) return refreshTimes();
@@ -178,21 +173,21 @@
     if (heading && !heading.querySelector('.reorder-tools')) {
       const tools = document.createElement('div');
       tools.className = 'reorder-tools';
-      tools.innerHTML = '<span>↕ 按住左侧手柄拖动任务</span><button type="button">恢复原计划</button>';
-      tools.querySelector('button').onclick = () => {
+      tools.innerHTML = '<button type="button" class="reset-order">恢复原计划</button>';
+      tools.querySelector('.reset-order').addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
         const data = orderData();
         delete data[currentPlanDay()];
         localStorage.setItem(ORDER_KEY, JSON.stringify(data));
         location.reload();
-      };
+      });
       heading.appendChild(tools);
     }
 
     document.querySelectorAll('.task-tile').forEach((tile) => {
       if (tile.dataset.dragReady) return;
       tile.dataset.dragReady = '1';
-      tile.draggable = false;
-
       const handle = document.createElement('button');
       handle.type = 'button';
       handle.className = 'drag-handle';
@@ -207,83 +202,60 @@
       });
 
       handle.addEventListener('pointerdown', (event) => {
-        if (event.button !== undefined && event.button !== 0) return;
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
+        const sourceGrid = tile.closest('.task-grid');
+        if (!sourceGrid) return;
         handle.setPointerCapture?.(event.pointerId);
-
         const rect = tile.getBoundingClientRect();
         const placeholder = document.createElement('div');
         placeholder.className = 'task-placeholder';
         placeholder.style.height = `${rect.height}px`;
-        tile.parentNode.insertBefore(placeholder, tile.nextSibling);
-
-        const ghost = tile.cloneNode(true);
-        ghost.classList.add('task-drag-ghost');
-        ghost.querySelector('.drag-handle')?.remove();
-        Object.assign(ghost.style, {
+        sourceGrid.insertBefore(placeholder, tile);
+        tile.classList.add('task-dragging-live');
+        Object.assign(tile.style, {
+          position: 'fixed',
+          zIndex: '100000',
           width: `${rect.width}px`,
           height: `${rect.height}px`,
           left: `${rect.left}px`,
           top: `${rect.top}px`,
+          margin: '0',
+          pointerEvents: 'none',
         });
-        document.body.appendChild(ghost);
-        tile.classList.add('task-drag-source');
-        tile.style.display = 'none';
-
+        document.body.appendChild(tile);
         const offsetX = event.clientX - rect.left;
         const offsetY = event.clientY - rect.top;
-        const moveGhost = (x, y) => {
-          ghost.style.left = `${x - offsetX}px`;
-          ghost.style.top = `${y - offsetY}px`;
+
+        const pointInGrid = (x, y) => [...document.querySelectorAll('.task-grid')].find((grid) => {
+          const r = grid.getBoundingClientRect();
+          return x >= r.left && x <= r.right && y >= r.top - 24 && y <= r.bottom + 24;
+        });
+
+        const placeMarker = (grid, x, y) => {
+          const items = [...grid.querySelectorAll('.task-tile')];
+          if (!items.length) { grid.appendChild(placeholder); return; }
+          let best = null;
+          items.forEach((item) => {
+            const r = item.getBoundingClientRect();
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height / 2;
+            const score = Math.hypot((x - cx) * 0.8, y - cy);
+            if (!best || score < best.score) best = { item, r, cx, cy, score };
+          });
+          if (!best) { grid.appendChild(placeholder); return; }
+          const sameRow = Math.abs(y - best.cy) < best.r.height * 0.55;
+          const before = sameRow ? x < best.cx : y < best.cy;
+          grid.insertBefore(placeholder, before ? best.item : best.item.nextSibling);
         };
-        moveGhost(event.clientX, event.clientY);
 
         const onMove = (moveEvent) => {
           moveEvent.preventDefault();
-          moveGhost(moveEvent.clientX, moveEvent.clientY);
-          ghost.style.display = 'none';
-          const under = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
-          ghost.style.display = '';
-          const targetGrid = under?.closest?.('.task-grid');
-          if (!targetGrid) return;
-
-          const items = [...targetGrid.querySelectorAll('.task-tile:not(.task-drag-source)')];
-          if (!items.length) {
-            targetGrid.appendChild(placeholder);
-            return;
-          }
-
-          const rows = [];
-          items.forEach((item) => {
-            const rect = item.getBoundingClientRect();
-            const centerY = rect.top + rect.height / 2;
-            let row = rows.find((entry) => Math.abs(entry.centerY - centerY) < Math.min(rect.height, entry.height) * 0.38);
-            if (!row) {
-              row = { centerY, height: rect.height, items: [] };
-              rows.push(row);
-            }
-            row.items.push({ item, rect, centerX: rect.left + rect.width / 2 });
-          });
-          rows.sort((a, b) => a.centerY - b.centerY);
-          rows.forEach((row) => row.items.sort((a, b) => a.centerX - b.centerX));
-
-          let inserted = false;
-          for (const row of rows) {
-            if (moveEvent.clientY < row.centerY - row.height * 0.34) {
-              targetGrid.insertBefore(placeholder, row.items[0].item);
-              inserted = true;
-              break;
-            }
-            if (Math.abs(moveEvent.clientY - row.centerY) <= row.height * 0.66) {
-              const beforeItem = row.items.find(({ centerX }) => moveEvent.clientX < centerX);
-              if (beforeItem) targetGrid.insertBefore(placeholder, beforeItem.item);
-              else targetGrid.insertBefore(placeholder, row.items[row.items.length - 1].item.nextSibling);
-              inserted = true;
-              break;
-            }
-          }
-          if (!inserted) targetGrid.appendChild(placeholder);
+          tile.style.left = `${moveEvent.clientX - offsetX}px`;
+          tile.style.top = `${moveEvent.clientY - offsetY}px`;
+          const grid = pointInGrid(moveEvent.clientX, moveEvent.clientY);
+          if (grid) placeMarker(grid, moveEvent.clientX, moveEvent.clientY);
         };
 
         const finish = (upEvent) => {
@@ -292,11 +264,12 @@
           handle.removeEventListener('pointermove', onMove);
           handle.removeEventListener('pointerup', finish);
           handle.removeEventListener('pointercancel', finish);
-          tile.style.display = '';
-          placeholder.parentNode.insertBefore(tile, placeholder);
+          placeholder.parentNode?.insertBefore(tile, placeholder);
           placeholder.remove();
-          ghost.remove();
-          tile.classList.remove('task-drag-source');
+          tile.classList.remove('task-dragging-live');
+          tile.removeAttribute('style');
+          tile.dataset.suppressNextClick = '1';
+          setTimeout(() => { delete tile.dataset.suppressNextClick; }, 180);
           saveOrder();
           refreshTimes();
         };
@@ -305,6 +278,13 @@
         handle.addEventListener('pointerup', finish);
         handle.addEventListener('pointercancel', finish);
       });
+
+      tile.addEventListener('click', (event) => {
+        if (tile.dataset.suppressNextClick) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }, true);
     });
     restoreOrder();
   }
