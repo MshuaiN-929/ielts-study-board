@@ -1,5 +1,5 @@
 (() => {
-  const ORDER_KEY = 'ielts-board-task-order-v2';
+  // Stable enhancement build: status + duration editing; dragging intentionally disabled.
   const STATUS_KEY = 'ielts-board-status-v2';
   const DURATION_KEY = 'ielts-board-task-duration-v1';
   const SESSION_START = { morning: '09:00', afternoon: '13:00', evening: '19:00' };
@@ -103,7 +103,13 @@
       }
     });
 
-    const tools = document.querySelector('.reorder-tools');
+    const heading = document.querySelector('.task-board .board-heading');
+    let tools = heading?.querySelector('.duration-tools');
+    if (heading && !tools) {
+      tools = document.createElement('div');
+      tools.className = 'duration-tools';
+      heading.appendChild(tools);
+    }
     if (tools && !tools.querySelector('.reset-durations')) {
       const reset = document.createElement('button');
       reset.type = 'button';
@@ -128,165 +134,14 @@
     updatePlanDurationLabel();
   }
 
-  function orderData() { return parseJSON(localStorage.getItem(ORDER_KEY), {}); }
-  function saveOrder() {
-    const data = orderData();
-    data[currentPlanDay()] = [...document.querySelectorAll('.session-block')].flatMap((block) => {
-      const session = [...block.classList].find((x) => SESSION_START[x]);
-      return [...block.querySelectorAll('.task-tile')].map((tile) => ({ name: taskName(tile), session }));
-    });
-    localStorage.setItem(ORDER_KEY, JSON.stringify(data));
-  }
-  function refreshTimes() {
-    document.querySelectorAll('.session-block').forEach((block) => {
-      const session = [...block.classList].find((x) => SESSION_START[x]);
-      if (!session) return;
-      let cursor = toMin(SESSION_START[session]);
-      const tiles = [...block.querySelectorAll('.task-tile')];
-      tiles.forEach((tile) => {
-        const duration = taskMinutes(tile);
-        const meta = tile.querySelector('.task-meta span');
-        if (meta) meta.textContent = `${fmt(cursor)}–${fmt(cursor + duration)} · ${duration}分钟 ✎`;
-        const stars = tile.querySelector('.task-stars');
-        if (stars) stars.textContent = `+${Math.max(1, Math.round(duration / 30))} ✦`;
-        cursor += duration;
-      });
-      const count = block.querySelector('.session-heading small');
-      if (count) count.textContent = `${tiles.filter((t) => t.classList.contains('done')).length}/${tiles.length}`;
-    });
-  }
-
-  function restoreOrder() {
-    const saved = orderData()[currentPlanDay()];
-    if (!saved?.length) return refreshTimes();
-    const tiles = new Map([...document.querySelectorAll('.task-tile')].map((t) => [taskName(t), t]));
-    const grids = {};
-    document.querySelectorAll('.session-block').forEach((block) => {
-      const session = [...block.classList].find((x) => SESSION_START[x]);
-      grids[session] = block.querySelector('.task-grid');
-    });
-    saved.forEach(({ name, session }) => { if (tiles.get(name) && grids[session]) grids[session].appendChild(tiles.get(name)); });
-    refreshTimes();
-  }
-  function setupDragging() {
-    const heading = document.querySelector('.task-board .board-heading');
-    if (heading && !heading.querySelector('.reorder-tools')) {
-      const tools = document.createElement('div');
-      tools.className = 'reorder-tools';
-      tools.innerHTML = '<button type="button" class="reset-order">恢复原计划</button>';
-      tools.querySelector('.reset-order').addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const data = orderData();
-        delete data[currentPlanDay()];
-        localStorage.setItem(ORDER_KEY, JSON.stringify(data));
-        location.reload();
-      });
-      heading.appendChild(tools);
-    }
-
+  function cleanupDraggingArtifacts() {
+    document.querySelectorAll('.drag-handle,.task-placeholder').forEach((el) => el.remove());
     document.querySelectorAll('.task-tile').forEach((tile) => {
-      if (tile.dataset.dragReady) return;
-      tile.dataset.dragReady = '1';
-      const handle = document.createElement('button');
-      handle.type = 'button';
-      handle.className = 'drag-handle';
-      handle.textContent = '⋮⋮';
-      handle.title = '按住拖动任务';
-      handle.setAttribute('aria-label', '拖动调整任务顺序');
-      tile.appendChild(handle);
-
-      handle.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-      });
-
-      handle.addEventListener('pointerdown', (event) => {
-        if (event.pointerType === 'mouse' && event.button !== 0) return;
-        event.preventDefault();
-        event.stopPropagation();
-        const sourceGrid = tile.closest('.task-grid');
-        if (!sourceGrid) return;
-        handle.setPointerCapture?.(event.pointerId);
-        const rect = tile.getBoundingClientRect();
-        const placeholder = document.createElement('div');
-        placeholder.className = 'task-placeholder';
-        placeholder.style.height = `${rect.height}px`;
-        sourceGrid.insertBefore(placeholder, tile);
-        tile.classList.add('task-dragging-live');
-        Object.assign(tile.style, {
-          position: 'fixed',
-          zIndex: '100000',
-          width: `${rect.width}px`,
-          height: `${rect.height}px`,
-          left: `${rect.left}px`,
-          top: `${rect.top}px`,
-          margin: '0',
-          pointerEvents: 'none',
-        });
-        document.body.appendChild(tile);
-        const offsetX = event.clientX - rect.left;
-        const offsetY = event.clientY - rect.top;
-
-        const pointInGrid = (x, y) => [...document.querySelectorAll('.task-grid')].find((grid) => {
-          const r = grid.getBoundingClientRect();
-          return x >= r.left && x <= r.right && y >= r.top - 24 && y <= r.bottom + 24;
-        });
-
-        const placeMarker = (grid, x, y) => {
-          const items = [...grid.querySelectorAll('.task-tile')];
-          if (!items.length) { grid.appendChild(placeholder); return; }
-          let best = null;
-          items.forEach((item) => {
-            const r = item.getBoundingClientRect();
-            const cx = r.left + r.width / 2;
-            const cy = r.top + r.height / 2;
-            const score = Math.hypot((x - cx) * 0.8, y - cy);
-            if (!best || score < best.score) best = { item, r, cx, cy, score };
-          });
-          if (!best) { grid.appendChild(placeholder); return; }
-          const sameRow = Math.abs(y - best.cy) < best.r.height * 0.55;
-          const before = sameRow ? x < best.cx : y < best.cy;
-          grid.insertBefore(placeholder, before ? best.item : best.item.nextSibling);
-        };
-
-        const onMove = (moveEvent) => {
-          moveEvent.preventDefault();
-          tile.style.left = `${moveEvent.clientX - offsetX}px`;
-          tile.style.top = `${moveEvent.clientY - offsetY}px`;
-          const grid = pointInGrid(moveEvent.clientX, moveEvent.clientY);
-          if (grid) placeMarker(grid, moveEvent.clientX, moveEvent.clientY);
-        };
-
-        const finish = (upEvent) => {
-          upEvent?.preventDefault?.();
-          handle.releasePointerCapture?.(event.pointerId);
-          handle.removeEventListener('pointermove', onMove);
-          handle.removeEventListener('pointerup', finish);
-          handle.removeEventListener('pointercancel', finish);
-          placeholder.parentNode?.insertBefore(tile, placeholder);
-          placeholder.remove();
-          tile.classList.remove('task-dragging-live');
-          tile.removeAttribute('style');
-          tile.dataset.suppressNextClick = '1';
-          setTimeout(() => { delete tile.dataset.suppressNextClick; }, 180);
-          saveOrder();
-          refreshTimes();
-        };
-
-        handle.addEventListener('pointermove', onMove);
-        handle.addEventListener('pointerup', finish);
-        handle.addEventListener('pointercancel', finish);
-      });
-
-      tile.addEventListener('click', (event) => {
-        if (tile.dataset.suppressNextClick) {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-      }, true);
+      tile.classList.remove('task-dragging-live');
+      tile.removeAttribute('style');
+      delete tile.dataset.dragReady;
     });
-    restoreOrder();
+    localStorage.removeItem('ielts-board-task-order-v2');
   }
 
   const statusData = () => parseJSON(localStorage.getItem(STATUS_KEY), {});
@@ -397,8 +252,14 @@
 
   let queued = false;
   function enhance() {
-    if (queued) return; queued = true;
-    requestAnimationFrame(() => { queued = false; renderStatusArea(); setupDurationEditing(); setupDragging(); });
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      cleanupDraggingArtifacts();
+      renderStatusArea();
+      setupDurationEditing();
+    });
   }
   const root = document.getElementById('root'); if (root) new MutationObserver(enhance).observe(root, { childList: true, subtree: true });
   document.addEventListener('click', (e) => { if (!e.target.closest('.status-card')) document.querySelectorAll('.status-options').forEach((x) => x.hidden = true); });
