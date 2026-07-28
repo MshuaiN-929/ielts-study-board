@@ -58,3 +58,38 @@
 .move-menu .move-confirm{background:#4f8272!important;color:#fff!important;text-align:center!important;font-weight:800!important;padding:9px 10px!important}
 .move-menu .move-confirm:hover{background:#416f61!important}
 @media(max-width:760px){.task-order-number{left:10px!important;top:10px!important}.move-menu{width:min(300px,calc(100vw - 36px))!important}.move-menu label{grid-template-columns:54px minmax(0,1fr)!important}.move-menu select{padding:11px!important}}
+
+/* v13: keep the full position editor visible and move number badge away from checkbox */
+.session-block,.task-grid,.task-tile{overflow:visible!important}
+.task-order-number{
+  left:auto!important;
+  right:14px!important;
+  top:12px!important;
+  width:27px!important;
+  height:27px!important;
+  box-shadow:0 0 0 3px rgba(255,255,255,.82)!important;
+}
+.move-menu{
+  position:fixed!important;
+  left:50%!important;
+  top:50%!important;
+  right:auto!important;
+  bottom:auto!important;
+  transform:translate(-50%,-50%)!important;
+  width:min(340px,calc(100vw - 36px))!important;
+  padding:18px!important;
+  gap:14px!important;
+  border-radius:20px!important;
+  z-index:100000!important;
+  box-shadow:0 24px 80px rgba(30,40,55,.28)!important;
+}
+.move-menu label{
+  grid-template-columns:58px minmax(0,1fr)!important;
+  font-size:14px!important;
+}
+.move-menu select{padding:12px 13px!important;font-size:15px!important}
+.move-menu .move-confirm{padding:12px!important;font-size:15px!important;border-radius:12px!important}
+@media(max-width:760px){
+  .task-order-number{left:auto!important;right:10px!important;top:10px!important}
+  .move-menu{width:min(320px,calc(100vw - 28px))!important;padding:16px!important}
+}
