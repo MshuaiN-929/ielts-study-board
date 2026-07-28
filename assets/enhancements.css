@@ -6,3 +6,59 @@
 .mood-summary{margin-top:24px}.mood-summary-item{display:flex;flex-direction:column;gap:6px;align-items:center;text-align:center;background:rgba(255,255,255,.8);border-radius:17px;padding:16px 10px;border:1px solid rgba(100,110,140,.11)}.mood-summary-item>span{font-size:24px}.mood-summary-item small{color:var(--muted,#777)}.mood-summary-item strong{font-size:14px;line-height:1.4}
 @media(max-width:900px){.status-cards,.mood-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.status-title,.mood-summary-heading{align-items:flex-start;flex-direction:column}.status-title small,.mood-summary-heading small{text-align:left}.reorder-tools{width:100%;margin-left:0}}
 @media(max-width:520px){.status-checkin,.mood-summary{padding:16px;border-radius:20px}.status-cards,.mood-summary-grid{grid-template-columns:1fr 1fr;gap:9px}.status-current{padding:10px 8px}.status-current strong{font-size:12px}.drag-handle{font-size:18px}}
+
+/* v3 layout fix: status occupies a full row instead of squeezing the task board */
+.content-grid > .status-checkin{
+  grid-column:1 / -1;
+  width:100%;
+  box-sizing:border-box;
+}
+.content-grid > .task-board{min-width:0}
+
+/* Expand status choices into a compact multi-column picker */
+.status-card{position:relative}
+.status-options{
+  left:50%;
+  right:auto;
+  width:min(720px,calc(100vw - 56px));
+  transform:translateX(-50%);
+  max-height:none;
+  overflow:visible;
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:6px;
+  padding:12px;
+}
+.status-options[hidden]{display:none!important}
+.status-options button{
+  min-width:0;
+  padding:10px 11px;
+  border-radius:11px;
+  white-space:nowrap;
+}
+.status-options .custom-status{
+  grid-column:1 / -1;
+  justify-content:center;
+  border-top:1px solid #eee;
+  margin-top:3px;
+  padding-top:11px;
+}
+
+@media(max-width:900px){
+  .status-options{grid-template-columns:repeat(3,minmax(0,1fr));width:min(620px,calc(100vw - 34px))}
+}
+@media(max-width:620px){
+  .status-options{
+    position:fixed;
+    z-index:9999;
+    top:50%;
+    left:50%;
+    width:calc(100vw - 28px);
+    max-height:72vh;
+    overflow:auto;
+    transform:translate(-50%,-50%);
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    box-shadow:0 24px 70px rgba(35,38,60,.28);
+  }
+  .status-options button{white-space:normal}
+}
