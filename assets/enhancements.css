@@ -35,3 +35,13 @@
 .task-tile .custom-check{position:relative!important;z-index:2!important}
 .task-tile input[type=checkbox]{pointer-events:auto!important}
 @media(max-width:900px){.task-board .board-heading{grid-template-columns:1fr auto!important}.task-board .adjusted-plan-time{grid-column:1/-1!important;grid-row:2!important;text-align:left!important}.task-board .board-heading>div:first-child{min-width:0!important}}
+
+/* v11: stable button-based task ordering */
+.task-tile{padding-bottom:52px!important}
+.task-move-control{position:absolute!important;left:14px!important;bottom:12px!important;z-index:15!important}
+.move-trigger{border:1px solid rgba(70,100,92,.18)!important;background:rgba(237,247,243,.96)!important;color:#3d7666!important;border-radius:999px!important;padding:6px 11px!important;font-size:12px!important;font-weight:700!important;cursor:pointer!important;white-space:nowrap!important}
+.move-menu{position:absolute!important;left:0!important;bottom:38px!important;width:150px!important;padding:7px!important;background:#fff!important;border:1px solid rgba(80,90,120,.16)!important;border-radius:14px!important;box-shadow:0 14px 38px rgba(30,40,55,.18)!important;display:grid!important;gap:3px!important;z-index:999!important}
+.move-menu[hidden]{display:none!important}.move-menu button{border:0!important;background:transparent!important;border-radius:9px!important;padding:8px 10px!important;text-align:left!important;cursor:pointer!important;color:inherit!important;white-space:nowrap!important}.move-menu button:hover{background:#f2f7f5!important}
+.duration-tools{gap:8px!important}.duration-tools button{font-size:13px!important}
+.task-board .board-heading{grid-template-columns:auto minmax(150px,1fr) auto!important}.task-board .adjusted-plan-time{white-space:nowrap!important}
+@media(max-width:760px){.task-board .board-heading{grid-template-columns:1fr!important}.task-board .adjusted-plan-time{grid-column:1!important;grid-row:auto!important;text-align:left!important}.duration-tools{margin-left:0!important;justify-content:flex-start!important;flex-wrap:wrap!important}.task-move-control{left:10px!important}.move-menu{position:fixed!important;left:50%!important;bottom:auto!important;top:50%!important;transform:translate(-50%,-50%)!important;width:min(280px,calc(100vw - 40px))!important;padding:12px!important}.move-menu button{padding:12px!important}}
