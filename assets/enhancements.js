@@ -1,6 +1,7 @@
 (() => {
   const ORDER_KEY = 'ielts-board-task-order-v2';
   const STATUS_KEY = 'ielts-board-status-v2';
+  const DURATION_KEY = 'ielts-board-task-duration-v1';
   const SESSION_START = { morning: '09:00', afternoon: '13:00', evening: '19:00' };
   const PERIODS = [
     { id: 'morning', label: '上午', icon: '☀️' },
@@ -28,9 +29,97 @@
     return `day-${text.match(/(\d+)/)?.[1] || 1}`;
   };
   const taskName = (tile) => tile.querySelector('.task-copy > strong')?.textContent?.trim() || '';
-  const taskMinutes = (tile) => Number((tile.querySelector('.task-meta span')?.textContent || '').match(/·\s*(\d+)分钟/)?.[1] || 0);
+  const taskMinutes = (tile) => Number(tile.dataset.taskMinutes || (tile.querySelector('.task-meta span')?.textContent || '').match(/·\s*(\d+)分钟/)?.[1] || 0);
   const toMin = (time) => { const [h, m] = time.split(':').map(Number); return h * 60 + m; };
   const fmt = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+
+
+  function durationData() { return parseJSON(localStorage.getItem(DURATION_KEY), {}); }
+  function durationKey(tile) { return `${currentPlanDay()}:${taskName(tile)}`; }
+  function saveDuration(tile, minutes) {
+    const all = durationData();
+    const key = durationKey(tile);
+    if (minutes === Number(tile.dataset.originalMinutes)) delete all[key];
+    else all[key] = minutes;
+    localStorage.setItem(DURATION_KEY, JSON.stringify(all));
+  }
+  function applySavedDurations() {
+    const all = durationData();
+    document.querySelectorAll('.task-tile').forEach((tile) => {
+      if (!tile.dataset.originalMinutes) {
+        const original = Number((tile.querySelector('.task-meta span')?.textContent || '').match(/·\s*(\d+)分钟/)?.[1] || 0);
+        tile.dataset.originalMinutes = String(original);
+      }
+      const saved = Number(all[durationKey(tile)] || 0);
+      tile.dataset.taskMinutes = String(saved > 0 ? saved : Number(tile.dataset.originalMinutes));
+    });
+  }
+  function updatePlanDurationLabel() {
+    const heading = document.querySelector('.task-board .board-heading > p');
+    if (!heading) return;
+    const total = [...document.querySelectorAll('.task-tile')].reduce((sum, tile) => sum + taskMinutes(tile), 0);
+    const hours = Math.floor(total / 60);
+    const minutes = total % 60;
+    const text = hours ? `${hours}小时${minutes ? `${minutes}分钟` : ''}` : `${minutes}分钟`;
+    heading.textContent = `调整后计划 ${text} · 单词按实际时间另计`;
+  }
+  function setupDurationEditing() {
+    applySavedDurations();
+    document.querySelectorAll('.task-tile').forEach((tile) => {
+      const meta = tile.querySelector('.task-meta');
+      if (!meta) return;
+      let button = meta.querySelector('.duration-edit');
+      if (!button) {
+        button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'duration-edit';
+        button.title = '点击调整任务时长';
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const current = taskMinutes(tile);
+          const original = Number(tile.dataset.originalMinutes || current);
+          const answer = prompt(`调整“${taskName(tile)}”的时长（分钟）\n建议填写 5–240；输入 0 恢复原时长 ${original} 分钟。`, String(current));
+          if (answer === null) return;
+          const value = Number.parseInt(answer.trim(), 10);
+          if (!Number.isFinite(value) || value < 0 || value > 240 || (value > 0 && value < 5)) {
+            alert('请输入 5–240 之间的整数；输入 0 可恢复原时长。');
+            return;
+          }
+          const next = value === 0 ? original : value;
+          tile.dataset.taskMinutes = String(next);
+          saveDuration(tile, next);
+          refreshTimes();
+          updatePlanDurationLabel();
+        });
+        meta.appendChild(button);
+      }
+      button.textContent = `${taskMinutes(tile)}分钟 ✎`;
+    });
+
+    const tools = document.querySelector('.reorder-tools');
+    if (tools && !tools.querySelector('.reset-durations')) {
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'reset-durations';
+      reset.textContent = '恢复原时长';
+      reset.addEventListener('click', () => {
+        const all = durationData();
+        const prefix = `${currentPlanDay()}:`;
+        Object.keys(all).forEach((key) => { if (key.startsWith(prefix)) delete all[key]; });
+        localStorage.setItem(DURATION_KEY, JSON.stringify(all));
+        document.querySelectorAll('.task-tile').forEach((tile) => {
+          tile.dataset.taskMinutes = tile.dataset.originalMinutes || tile.dataset.taskMinutes;
+        });
+        refreshTimes();
+        setupDurationEditing();
+        updatePlanDurationLabel();
+      });
+      tools.appendChild(reset);
+    }
+    refreshTimes();
+    updatePlanDurationLabel();
+  }
 
   function orderData() { return parseJSON(localStorage.getItem(ORDER_KEY), {}); }
   function saveOrder() {
@@ -50,7 +139,9 @@
       tiles.forEach((tile) => {
         const duration = taskMinutes(tile);
         const meta = tile.querySelector('.task-meta span');
-        if (meta) meta.textContent = `${fmt(cursor)}–${fmt(cursor + duration)} · ${duration}分钟`;
+        if (meta) meta.textContent = `${fmt(cursor)}–${fmt(cursor + duration)}`;
+        const durationButton = tile.querySelector('.duration-edit');
+        if (durationButton) durationButton.textContent = `${duration}分钟 ✎`;
         cursor += duration;
       });
       const count = block.querySelector('.session-heading small');
@@ -125,6 +216,7 @@
         });
         document.body.appendChild(ghost);
         tile.classList.add('task-drag-source');
+        tile.style.display = 'none';
 
         const offsetX = event.clientX - rect.left;
         const offsetY = event.clientY - rect.top;
@@ -144,10 +236,28 @@
           const targetGrid = under?.closest?.('.task-grid');
           if (targetTile) {
             const targetRect = targetTile.getBoundingClientRect();
-            const before = moveEvent.clientY < targetRect.top + targetRect.height / 2;
+            const dx = moveEvent.clientX - (targetRect.left + targetRect.width / 2);
+            const dy = moveEvent.clientY - (targetRect.top + targetRect.height / 2);
+            const sameRow = Math.abs(dy) < targetRect.height * 0.45;
+            const before = sameRow ? dx < 0 : dy < 0;
             targetTile.parentNode.insertBefore(placeholder, before ? targetTile : targetTile.nextSibling);
           } else if (targetGrid) {
-            targetGrid.appendChild(placeholder);
+            const items = [...targetGrid.querySelectorAll('.task-tile:not(.task-drag-source)')];
+            const nearest = items
+              .map((item) => {
+                const r = item.getBoundingClientRect();
+                const cx = r.left + r.width / 2;
+                const cy = r.top + r.height / 2;
+                return { item, distance: Math.hypot(moveEvent.clientX - cx, moveEvent.clientY - cy), rect: r };
+              })
+              .sort((a, b) => a.distance - b.distance)[0];
+            if (!nearest) targetGrid.appendChild(placeholder);
+            else {
+              const before = moveEvent.clientY < nearest.rect.top + nearest.rect.height / 2 ||
+                (Math.abs(moveEvent.clientY - (nearest.rect.top + nearest.rect.height / 2)) < nearest.rect.height * .35 &&
+                 moveEvent.clientX < nearest.rect.left + nearest.rect.width / 2);
+              targetGrid.insertBefore(placeholder, before ? nearest.item : nearest.item.nextSibling);
+            }
           }
         };
 
@@ -157,6 +267,7 @@
           handle.removeEventListener('pointermove', onMove);
           handle.removeEventListener('pointerup', finish);
           handle.removeEventListener('pointercancel', finish);
+          tile.style.display = '';
           placeholder.parentNode.insertBefore(tile, placeholder);
           placeholder.remove();
           ghost.remove();
@@ -282,7 +393,7 @@
   let queued = false;
   function enhance() {
     if (queued) return; queued = true;
-    requestAnimationFrame(() => { queued = false; renderStatusArea(); setupDragging(); });
+    requestAnimationFrame(() => { queued = false; renderStatusArea(); setupDurationEditing(); setupDragging(); });
   }
   const root = document.getElementById('root'); if (root) new MutationObserver(enhance).observe(root, { childList: true, subtree: true });
   document.addEventListener('click', (e) => { if (!e.target.closest('.status-card')) document.querySelectorAll('.status-options').forEach((x) => x.hidden = true); });

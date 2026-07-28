@@ -171,3 +171,88 @@
   .task-tile>.custom-check{margin-left:20px!important}
   .task-tile .drag-handle{left:4px!important}
 }
+
+
+/* v6 precise grid dragging + task column alignment */
+.task-tile{
+  display:grid!important;
+  grid-template-columns:38px minmax(0,1fr) auto!important;
+  grid-template-rows:auto!important;
+  column-gap:12px!important;
+  align-items:start!important;
+}
+.task-tile>input[type="checkbox"]{
+  position:absolute!important;
+  opacity:0!important;
+  pointer-events:none!important;
+}
+.task-tile>.custom-check{
+  grid-column:1!important;
+  grid-row:1!important;
+  margin:0!important;
+  align-self:start!important;
+  justify-self:center!important;
+}
+.task-tile>.task-copy{
+  grid-column:2!important;
+  grid-row:1!important;
+  min-width:0!important;
+  margin:0!important;
+}
+.task-tile>.task-stars{
+  grid-column:3!important;
+  grid-row:1!important;
+  align-self:end!important;
+  justify-self:end!important;
+}
+.task-tile>.sparkles{grid-column:1/-1!important}
+.task-tile .drag-handle{
+  left:7px!important;
+  top:58%!important;
+}
+.task-placeholder{
+  width:100%!important;
+  align-self:stretch!important;
+  justify-self:stretch!important;
+  margin:0!important;
+}
+.task-drag-source{display:none!important}
+.task-drag-ghost{
+  transition:none!important;
+  will-change:left,top!important;
+}
+@media(max-width:620px){
+  .task-tile{grid-template-columns:34px minmax(0,1fr) auto!important;column-gap:9px!important}
+  .task-tile .drag-handle{left:3px!important}
+}
+
+
+/* v7 editable task duration */
+.task-tile .task-meta{
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  flex-wrap:wrap!important;
+}
+.task-tile .task-meta>span{
+  white-space:nowrap!important;
+}
+.duration-edit{
+  appearance:none!important;
+  border:1px solid rgba(70,110,98,.18)!important;
+  background:rgba(226,242,236,.82)!important;
+  color:#3d7666!important;
+  border-radius:999px!important;
+  padding:4px 9px!important;
+  font:inherit!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  line-height:1.2!important;
+  cursor:pointer!important;
+  white-space:nowrap!important;
+}
+.duration-edit:hover{background:rgba(211,235,226,.98)!important;transform:translateY(-1px)}
+.duration-edit:active{transform:none}
+@media(max-width:620px){
+  .duration-edit{padding:4px 7px!important;font-size:11px!important}
+}
