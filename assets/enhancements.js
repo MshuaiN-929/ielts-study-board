@@ -153,39 +153,103 @@
   function closeMoveMenus(except) {
     document.querySelectorAll('.move-menu').forEach((menu) => { if (menu !== except) menu.hidden = true; });
   }
-  function moveTile(tile, action) {
-    const currentGrid = tile.closest('.task-grid');
-    if (!currentGrid) return;
-    if (action === 'up') {
-      const previous = tile.previousElementSibling;
-      if (previous) currentGrid.insertBefore(tile, previous);
-    } else if (action === 'down') {
-      const next = tile.nextElementSibling;
-      if (next) currentGrid.insertBefore(next, tile);
-    } else if (SESSION_START[action]) {
-      const target = grids()[action];
-      if (target && target !== currentGrid) target.appendChild(tile);
-    }
-    saveOrder(); refreshTimes(); updatePlanDurationLabel(); closeMoveMenus();
+
+  function sessionTiles(session) {
+    const grid = grids()[session];
+    return grid ? [...grid.querySelectorAll(':scope > .task-tile')] : [];
   }
+
+  function renumberTasks() {
+    document.querySelectorAll('.session-block').forEach((block) => {
+      const tiles = [...block.querySelectorAll('.task-grid > .task-tile')];
+      tiles.forEach((tile, index) => {
+        let badge = tile.querySelector('.task-order-number');
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'task-order-number';
+          tile.appendChild(badge);
+        }
+        badge.textContent = String(index + 1);
+        badge.title = `本时段第 ${index + 1} 个任务`;
+      });
+    });
+  }
+
+  function fillPositionSelect(select, session, movingTile) {
+    const tiles = sessionTiles(session).filter((tile) => tile !== movingTile);
+    const currentSession = sessionOfTile(movingTile);
+    const currentIndex = sessionTiles(currentSession).indexOf(movingTile);
+    select.innerHTML = '';
+    for (let position = 1; position <= tiles.length + 1; position += 1) {
+      const option = document.createElement('option');
+      option.value = String(position);
+      option.textContent = `任务 ${position}`;
+      select.appendChild(option);
+    }
+    if (session === currentSession) {
+      select.value = String(Math.min(currentIndex + 1, tiles.length + 1));
+    } else {
+      select.value = String(tiles.length + 1);
+    }
+  }
+
+  function moveTileTo(tile, targetSession, targetPosition) {
+    const targetGrid = grids()[targetSession];
+    if (!targetGrid) return;
+    const remaining = [...targetGrid.querySelectorAll(':scope > .task-tile')].filter((item) => item !== tile);
+    const index = Math.max(0, Math.min(Number(targetPosition) - 1, remaining.length));
+    const reference = remaining[index] || null;
+    targetGrid.insertBefore(tile, reference);
+    saveOrder();
+    renumberTasks();
+    refreshTimes();
+    updatePlanDurationLabel();
+    closeMoveMenus();
+  }
+
+  let appliedOrderDay = null;
   function setupMoveControls() {
-    applySavedOrder();
+    const day = currentPlanDay();
+    if (appliedOrderDay !== day) {
+      appliedOrderDay = day;
+      applySavedOrder();
+    }
     document.querySelectorAll('.task-tile').forEach((tile) => {
       if (tile.querySelector('.task-move-control')) return;
-      const control = document.createElement('div'); control.className = 'task-move-control';
-      control.innerHTML = '<button type="button" class="move-trigger" aria-label="调整任务顺序">调整</button><div class="move-menu" hidden></div>';
+      const control = document.createElement('div');
+      control.className = 'task-move-control';
+      control.innerHTML = `
+        <button type="button" class="move-trigger" aria-label="调整任务位置">调整位置</button>
+        <div class="move-menu" hidden>
+          <label><span>移到</span><select class="move-session">
+            <option value="morning">上午</option>
+            <option value="afternoon">下午</option>
+            <option value="evening">晚上</option>
+          </select></label>
+          <label><span>位置</span><select class="move-position"></select></label>
+          <button type="button" class="move-confirm">确认调整</button>
+        </div>`;
       const menu = control.querySelector('.move-menu');
-      const options = [
-        ['up', '↑ 上移'], ['down', '↓ 下移'],
-        ['morning', '☀️ 移到上午'], ['afternoon', '🌤️ 移到下午'], ['evening', '🌙 移到晚上'],
-      ];
-      options.forEach(([action, label]) => {
-        const button = document.createElement('button'); button.type = 'button'; button.textContent = label;
-        button.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); moveTile(tile, action); });
-        menu.appendChild(button);
+      const sessionSelect = control.querySelector('.move-session');
+      const positionSelect = control.querySelector('.move-position');
+      const openMenu = () => {
+        const session = sessionOfTile(tile) || 'morning';
+        sessionSelect.value = session;
+        fillPositionSelect(positionSelect, session, tile);
+      };
+      sessionSelect.addEventListener('change', () => fillPositionSelect(positionSelect, sessionSelect.value, tile));
+      control.querySelector('.move-confirm').addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        moveTileTo(tile, sessionSelect.value, Number(positionSelect.value));
       });
       control.querySelector('.move-trigger').addEventListener('click', (event) => {
-        event.preventDefault(); event.stopPropagation(); closeMoveMenus(menu); menu.hidden = !menu.hidden;
+        event.preventDefault();
+        event.stopPropagation();
+        const willOpen = menu.hidden;
+        closeMoveMenus(menu);
+        menu.hidden = !willOpen;
+        if (willOpen) openMenu();
       });
       tile.appendChild(control);
     });
@@ -199,6 +263,7 @@
       });
       tools.prepend(reset);
     }
+    renumberTasks();
     refreshTimes();
   }
 

@@ -36,7 +36,7 @@
 .task-tile input[type=checkbox]{pointer-events:auto!important}
 @media(max-width:900px){.task-board .board-heading{grid-template-columns:1fr auto!important}.task-board .adjusted-plan-time{grid-column:1/-1!important;grid-row:2!important;text-align:left!important}.task-board .board-heading>div:first-child{min-width:0!important}}
 
-/* v11: stable button-based task ordering */
+/* v12: stable button ordering; prevents repeated reorder loop */
 .task-tile{padding-bottom:52px!important}
 .task-move-control{position:absolute!important;left:14px!important;bottom:12px!important;z-index:15!important}
 .move-trigger{border:1px solid rgba(70,100,92,.18)!important;background:rgba(237,247,243,.96)!important;color:#3d7666!important;border-radius:999px!important;padding:6px 11px!important;font-size:12px!important;font-weight:700!important;cursor:pointer!important;white-space:nowrap!important}
@@ -45,3 +45,16 @@
 .duration-tools{gap:8px!important}.duration-tools button{font-size:13px!important}
 .task-board .board-heading{grid-template-columns:auto minmax(150px,1fr) auto!important}.task-board .adjusted-plan-time{white-space:nowrap!important}
 @media(max-width:760px){.task-board .board-heading{grid-template-columns:1fr!important}.task-board .adjusted-plan-time{grid-column:1!important;grid-row:auto!important;text-align:left!important}.duration-tools{margin-left:0!important;justify-content:flex-start!important;flex-wrap:wrap!important}.task-move-control{left:10px!important}.move-menu{position:fixed!important;left:50%!important;bottom:auto!important;top:50%!important;transform:translate(-50%,-50%)!important;width:min(280px,calc(100vw - 40px))!important;padding:12px!important}.move-menu button{padding:12px!important}}
+
+
+/* v12: numbered, exact-position task controls */
+.task-tile{padding-bottom:52px!important}
+.task-order-number{position:absolute!important;left:14px!important;top:12px!important;width:25px!important;height:25px!important;border-radius:50%!important;display:grid!important;place-items:center!important;background:rgba(79,130,113,.12)!important;color:#477b6d!important;font-size:12px!important;font-weight:800!important;line-height:1!important;z-index:4!important;pointer-events:none!important}
+.task-move-control{position:absolute!important;left:14px!important;bottom:11px!important;z-index:15!important}
+.move-trigger{padding:6px 11px!important}
+.move-menu{width:210px!important;padding:10px!important;gap:8px!important}
+.move-menu label{display:grid!important;grid-template-columns:44px minmax(0,1fr)!important;align-items:center!important;gap:8px!important;font-size:12px!important;font-weight:700!important;color:#62706c!important}
+.move-menu select{width:100%!important;border:1px solid rgba(70,100,92,.2)!important;border-radius:9px!important;background:#fff!important;padding:8px 9px!important;font:inherit!important;color:#35433f!important;cursor:pointer!important}
+.move-menu .move-confirm{background:#4f8272!important;color:#fff!important;text-align:center!important;font-weight:800!important;padding:9px 10px!important}
+.move-menu .move-confirm:hover{background:#416f61!important}
+@media(max-width:760px){.task-order-number{left:10px!important;top:10px!important}.move-menu{width:min(300px,calc(100vw - 36px))!important}.move-menu label{grid-template-columns:54px minmax(0,1fr)!important}.move-menu select{padding:11px!important}}
