@@ -256,3 +256,75 @@
 @media(max-width:620px){
   .duration-edit{padding:4px 7px!important;font-size:11px!important}
 }
+
+
+/* v8 fixes: stable heading, visible duration editor, stars stay on one line */
+.task-board .board-heading{
+  display:grid!important;
+  grid-template-columns:minmax(190px,auto) minmax(220px,1fr) auto!important;
+  align-items:center!important;
+  gap:14px 22px!important;
+}
+.task-board .board-heading>div:first-child{min-width:0!important}
+.task-board .board-heading h2{
+  writing-mode:horizontal-tb!important;
+  white-space:nowrap!important;
+  word-break:keep-all!important;
+  margin:0!important;
+}
+.task-board .adjusted-plan-time{
+  margin:0!important;
+  min-width:0!important;
+  text-align:center!important;
+  line-height:1.5!important;
+  word-break:normal!important;
+  overflow-wrap:normal!important;
+}
+.task-board .reorder-tools{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  justify-content:flex-end!important;
+  align-items:center!important;
+  gap:8px!important;
+  width:auto!important;
+  margin:0!important;
+}
+.task-board .reorder-tools>span{white-space:nowrap!important}
+.task-board .reorder-tools button{white-space:nowrap!important}
+.task-tile>.task-stars{
+  white-space:nowrap!important;
+  word-break:keep-all!important;
+  min-width:max-content!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  flex-wrap:nowrap!important;
+}
+.task-tile .task-meta{
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:center!important;
+  flex-wrap:wrap!important;
+  gap:7px!important;
+}
+.task-tile .task-meta>em,
+.task-tile .task-meta>span,
+.task-tile .duration-edit{white-space:nowrap!important}
+.task-tile .duration-edit{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  position:relative!important;
+  z-index:10!important;
+  pointer-events:auto!important;
+}
+.task-placeholder{pointer-events:none!important}
+@media(max-width:1050px){
+  .task-board .board-heading{grid-template-columns:minmax(170px,auto) 1fr!important}
+  .task-board .reorder-tools{grid-column:1/-1!important;justify-content:flex-start!important}
+  .task-board .adjusted-plan-time{text-align:right!important}
+}
+@media(max-width:680px){
+  .task-board .board-heading{grid-template-columns:1fr!important}
+  .task-board .adjusted-plan-time{text-align:left!important}
+  .task-board .reorder-tools{grid-column:1!important;justify-content:flex-start!important}
+}

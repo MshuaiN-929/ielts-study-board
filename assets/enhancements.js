@@ -55,35 +55,46 @@
     });
   }
   function updatePlanDurationLabel() {
-    const heading = document.querySelector('.task-board .board-heading > p');
+    const heading = document.querySelector('.task-board .board-heading');
     if (!heading) return;
     const total = [...document.querySelectorAll('.task-tile')].reduce((sum, tile) => sum + taskMinutes(tile), 0);
     const hours = Math.floor(total / 60);
     const minutes = total % 60;
     const text = hours ? `${hours}小时${minutes ? `${minutes}分钟` : ''}` : `${minutes}分钟`;
-    heading.textContent = `调整后计划 ${text} · 单词按实际时间另计`;
+    let label = heading.querySelector('.adjusted-plan-time');
+    if (!label) {
+      label = document.createElement('p');
+      label.className = 'adjusted-plan-time';
+      const original = heading.querySelector(':scope > p');
+      if (original) original.replaceWith(label); else heading.appendChild(label);
+    }
+    label.textContent = `调整后计划 ${text} · 单词按实际时间另计`;
   }
   function setupDurationEditing() {
     applySavedDurations();
     document.querySelectorAll('.task-tile').forEach((tile) => {
       const meta = tile.querySelector('.task-meta');
-      if (!meta) return;
+      const timeText = meta?.querySelector(':scope > span');
+      if (!meta || !timeText) return;
       let button = meta.querySelector('.duration-edit');
       if (!button) {
         button = document.createElement('button');
         button.type = 'button';
         button.className = 'duration-edit';
         button.title = '点击调整任务时长';
-        button.addEventListener('click', (event) => {
+        button.setAttribute('aria-label', `调整${taskName(tile)}的时长`);
+        meta.appendChild(button);
+        const edit = (event) => {
           event.preventDefault();
           event.stopPropagation();
           const current = taskMinutes(tile);
           const original = Number(tile.dataset.originalMinutes || current);
-          const answer = prompt(`调整“${taskName(tile)}”的时长（分钟）\n建议填写 5–240；输入 0 恢复原时长 ${original} 分钟。`, String(current));
+          const answer = window.prompt(`调整“${taskName(tile)}”的时长（分钟）
+填写 5–240；输入 0 恢复原时长 ${original} 分钟。`, String(current));
           if (answer === null) return;
           const value = Number.parseInt(answer.trim(), 10);
           if (!Number.isFinite(value) || value < 0 || value > 240 || (value > 0 && value < 5)) {
-            alert('请输入 5–240 之间的整数；输入 0 可恢复原时长。');
+            window.alert('请输入 5–240 之间的整数；输入 0 可恢复原时长。');
             return;
           }
           const next = value === 0 ? original : value;
@@ -91,8 +102,9 @@
           saveDuration(tile, next);
           refreshTimes();
           updatePlanDurationLabel();
-        });
-        meta.appendChild(button);
+        };
+        button.addEventListener('pointerdown', (event) => { event.stopPropagation(); });
+        button.addEventListener('click', edit);
       }
       button.textContent = `${taskMinutes(tile)}分钟 ✎`;
     });
@@ -103,7 +115,8 @@
       reset.type = 'button';
       reset.className = 'reset-durations';
       reset.textContent = '恢复原时长';
-      reset.addEventListener('click', () => {
+      reset.addEventListener('click', (event) => {
+        event.preventDefault();
         const all = durationData();
         const prefix = `${currentPlanDay()}:`;
         Object.keys(all).forEach((key) => { if (key.startsWith(prefix)) delete all[key]; });
@@ -232,33 +245,45 @@
           ghost.style.display = 'none';
           const under = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
           ghost.style.display = '';
-          const targetTile = under?.closest?.('.task-tile:not(.task-drag-source)');
           const targetGrid = under?.closest?.('.task-grid');
-          if (targetTile) {
-            const targetRect = targetTile.getBoundingClientRect();
-            const dx = moveEvent.clientX - (targetRect.left + targetRect.width / 2);
-            const dy = moveEvent.clientY - (targetRect.top + targetRect.height / 2);
-            const sameRow = Math.abs(dy) < targetRect.height * 0.45;
-            const before = sameRow ? dx < 0 : dy < 0;
-            targetTile.parentNode.insertBefore(placeholder, before ? targetTile : targetTile.nextSibling);
-          } else if (targetGrid) {
-            const items = [...targetGrid.querySelectorAll('.task-tile:not(.task-drag-source)')];
-            const nearest = items
-              .map((item) => {
-                const r = item.getBoundingClientRect();
-                const cx = r.left + r.width / 2;
-                const cy = r.top + r.height / 2;
-                return { item, distance: Math.hypot(moveEvent.clientX - cx, moveEvent.clientY - cy), rect: r };
-              })
-              .sort((a, b) => a.distance - b.distance)[0];
-            if (!nearest) targetGrid.appendChild(placeholder);
-            else {
-              const before = moveEvent.clientY < nearest.rect.top + nearest.rect.height / 2 ||
-                (Math.abs(moveEvent.clientY - (nearest.rect.top + nearest.rect.height / 2)) < nearest.rect.height * .35 &&
-                 moveEvent.clientX < nearest.rect.left + nearest.rect.width / 2);
-              targetGrid.insertBefore(placeholder, before ? nearest.item : nearest.item.nextSibling);
+          if (!targetGrid) return;
+
+          const items = [...targetGrid.querySelectorAll('.task-tile:not(.task-drag-source)')];
+          if (!items.length) {
+            targetGrid.appendChild(placeholder);
+            return;
+          }
+
+          const rows = [];
+          items.forEach((item) => {
+            const rect = item.getBoundingClientRect();
+            const centerY = rect.top + rect.height / 2;
+            let row = rows.find((entry) => Math.abs(entry.centerY - centerY) < Math.min(rect.height, entry.height) * 0.38);
+            if (!row) {
+              row = { centerY, height: rect.height, items: [] };
+              rows.push(row);
+            }
+            row.items.push({ item, rect, centerX: rect.left + rect.width / 2 });
+          });
+          rows.sort((a, b) => a.centerY - b.centerY);
+          rows.forEach((row) => row.items.sort((a, b) => a.centerX - b.centerX));
+
+          let inserted = false;
+          for (const row of rows) {
+            if (moveEvent.clientY < row.centerY - row.height * 0.34) {
+              targetGrid.insertBefore(placeholder, row.items[0].item);
+              inserted = true;
+              break;
+            }
+            if (Math.abs(moveEvent.clientY - row.centerY) <= row.height * 0.66) {
+              const beforeItem = row.items.find(({ centerX }) => moveEvent.clientX < centerX);
+              if (beforeItem) targetGrid.insertBefore(placeholder, beforeItem.item);
+              else targetGrid.insertBefore(placeholder, row.items[row.items.length - 1].item.nextSibling);
+              inserted = true;
+              break;
             }
           }
+          if (!inserted) targetGrid.appendChild(placeholder);
         };
 
         const finish = (upEvent) => {
