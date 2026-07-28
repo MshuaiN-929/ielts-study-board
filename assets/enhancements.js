@@ -108,6 +108,29 @@
   function setStatus(period, value) {
     const all = statusData(); all[dateKey()] = { ...(all[dateKey()] || {}), [period]: value };
     localStorage.setItem(STATUS_KEY, JSON.stringify(all)); updateSummary();
+    const syncLayout = () => {
+      const grid = document.querySelector('.content-grid');
+      const taskBoard = document.querySelector('.task-board');
+      const aside = document.querySelector('.record-card');
+      const status = document.querySelector('.status-checkin');
+      if (!grid) return;
+      if (window.innerWidth <= 980) {
+        grid.style.gridTemplateColumns = 'minmax(0, 1fr)';
+        if (status) status.style.gridColumn = '1';
+        if (taskBoard) taskBoard.style.gridColumn = '1';
+        if (aside) aside.style.gridColumn = '1';
+      } else {
+        grid.style.gridTemplateColumns = 'minmax(0, 1fr) minmax(300px, 360px)';
+        if (status) status.style.gridColumn = '1 / -1';
+        if (taskBoard) taskBoard.style.gridColumn = '1';
+        if (aside) aside.style.gridColumn = '2';
+      }
+    };
+    syncLayout();
+    if (!window.__ieltsLayoutListener) {
+      window.__ieltsLayoutListener = true;
+      window.addEventListener('resize', syncLayout);
+    }
   }
   function updateSummary() {
     const summary = document.querySelector('.mood-summary-grid'); if (!summary) return;
@@ -123,6 +146,10 @@
     const data = getTodayStatuses();
     const section = document.createElement('section');
     section.className = 'status-checkin';
+    section.style.gridColumn = '1 / -1';
+    section.style.width = '100%';
+    section.style.maxWidth = 'none';
+    section.style.boxSizing = 'border-box';
     section.innerHTML = '<div class="status-title"><div><p class="eyebrow">CURRENT STATUS</p><h2>现在是什么状态？</h2></div><small>上午、中午、下午、晚上各记一次</small></div><div class="status-cards"></div>';
     const cards = section.querySelector('.status-cards');
     PERIODS.forEach((period) => {
@@ -141,13 +168,45 @@
       card.querySelector('.status-current').onclick = () => { document.querySelectorAll('.status-options').forEach((x) => { if (x !== options) x.hidden = true; }); options.hidden = !options.hidden; };
       cards.appendChild(card);
     });
-    board.parentNode.insertBefore(section, board);
+    const contentGrid = board.parentNode;
+    contentGrid.style.display = 'grid';
+    contentGrid.style.gridTemplateColumns = 'minmax(0, 1fr) minmax(300px, 360px)';
+    contentGrid.style.alignItems = 'start';
+    section.style.gridColumn = '1 / -1';
+    contentGrid.insertBefore(section, board);
+    board.style.gridColumn = '1';
+    board.style.minWidth = '0';
+    const aside = contentGrid.querySelector('.record-card');
+    if (aside) { aside.style.gridColumn = '2'; aside.style.minWidth = '0'; }
 
     const footer = document.querySelector('footer');
     const summary = document.createElement('section'); summary.className = 'mood-summary';
     summary.innerHTML = '<div class="mood-summary-heading"><div><p class="eyebrow">TODAY\'S MOOD MAP</p><h2>今日心情状态总览</h2></div><small>一天不是只有一种状态，变化也算记录</small></div><div class="mood-summary-grid"></div>';
     footer?.parentNode.insertBefore(summary, footer);
     updateSummary();
+    const syncLayout = () => {
+      const grid = document.querySelector('.content-grid');
+      const taskBoard = document.querySelector('.task-board');
+      const aside = document.querySelector('.record-card');
+      const status = document.querySelector('.status-checkin');
+      if (!grid) return;
+      if (window.innerWidth <= 980) {
+        grid.style.gridTemplateColumns = 'minmax(0, 1fr)';
+        if (status) status.style.gridColumn = '1';
+        if (taskBoard) taskBoard.style.gridColumn = '1';
+        if (aside) aside.style.gridColumn = '1';
+      } else {
+        grid.style.gridTemplateColumns = 'minmax(0, 1fr) minmax(300px, 360px)';
+        if (status) status.style.gridColumn = '1 / -1';
+        if (taskBoard) taskBoard.style.gridColumn = '1';
+        if (aside) aside.style.gridColumn = '2';
+      }
+    };
+    syncLayout();
+    if (!window.__ieltsLayoutListener) {
+      window.__ieltsLayoutListener = true;
+      window.addEventListener('resize', syncLayout);
+    }
   }
 
   let queued = false;
