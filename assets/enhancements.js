@@ -74,30 +74,100 @@
     if (heading && !heading.querySelector('.reorder-tools')) {
       const tools = document.createElement('div');
       tools.className = 'reorder-tools';
-      tools.innerHTML = '<span>↕ 按住任务拖动调整顺序</span><button type="button">恢复原计划</button>';
+      tools.innerHTML = '<span>↕ 按住左侧手柄拖动任务</span><button type="button">恢复原计划</button>';
       tools.querySelector('button').onclick = () => {
-        const data = orderData(); delete data[currentPlanDay()]; localStorage.setItem(ORDER_KEY, JSON.stringify(data)); location.reload();
+        const data = orderData();
+        delete data[currentPlanDay()];
+        localStorage.setItem(ORDER_KEY, JSON.stringify(data));
+        location.reload();
       };
       heading.appendChild(tools);
     }
+
     document.querySelectorAll('.task-tile').forEach((tile) => {
       if (tile.dataset.dragReady) return;
-      tile.dataset.dragReady = '1'; tile.draggable = true;
-      const handle = document.createElement('span'); handle.className = 'drag-handle'; handle.textContent = '⋮⋮'; handle.title = '拖动任务';
-      tile.insertBefore(handle, tile.firstChild);
-      tile.addEventListener('dragstart', (e) => { tile.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
-      tile.addEventListener('dragend', () => { tile.classList.remove('dragging'); saveOrder(); refreshTimes(); });
-    });
-    document.querySelectorAll('.task-grid').forEach((grid) => {
-      if (grid.dataset.dropReady) return;
-      grid.dataset.dropReady = '1';
-      grid.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const dragging = document.querySelector('.task-tile.dragging'); if (!dragging) return;
-        const after = [...grid.querySelectorAll('.task-tile:not(.dragging)')].find((item) => {
-          const r = item.getBoundingClientRect(); return e.clientY < r.top + r.height / 2;
+      tile.dataset.dragReady = '1';
+      tile.draggable = false;
+
+      const handle = document.createElement('button');
+      handle.type = 'button';
+      handle.className = 'drag-handle';
+      handle.textContent = '⋮⋮';
+      handle.title = '按住拖动任务';
+      handle.setAttribute('aria-label', '拖动调整任务顺序');
+      tile.appendChild(handle);
+
+      handle.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+
+      handle.addEventListener('pointerdown', (event) => {
+        if (event.button !== undefined && event.button !== 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        handle.setPointerCapture?.(event.pointerId);
+
+        const rect = tile.getBoundingClientRect();
+        const placeholder = document.createElement('div');
+        placeholder.className = 'task-placeholder';
+        placeholder.style.height = `${rect.height}px`;
+        tile.parentNode.insertBefore(placeholder, tile.nextSibling);
+
+        const ghost = tile.cloneNode(true);
+        ghost.classList.add('task-drag-ghost');
+        ghost.querySelector('.drag-handle')?.remove();
+        Object.assign(ghost.style, {
+          width: `${rect.width}px`,
+          height: `${rect.height}px`,
+          left: `${rect.left}px`,
+          top: `${rect.top}px`,
         });
-        grid.insertBefore(dragging, after || null);
+        document.body.appendChild(ghost);
+        tile.classList.add('task-drag-source');
+
+        const offsetX = event.clientX - rect.left;
+        const offsetY = event.clientY - rect.top;
+        const moveGhost = (x, y) => {
+          ghost.style.left = `${x - offsetX}px`;
+          ghost.style.top = `${y - offsetY}px`;
+        };
+        moveGhost(event.clientX, event.clientY);
+
+        const onMove = (moveEvent) => {
+          moveEvent.preventDefault();
+          moveGhost(moveEvent.clientX, moveEvent.clientY);
+          ghost.style.display = 'none';
+          const under = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+          ghost.style.display = '';
+          const targetTile = under?.closest?.('.task-tile:not(.task-drag-source)');
+          const targetGrid = under?.closest?.('.task-grid');
+          if (targetTile) {
+            const targetRect = targetTile.getBoundingClientRect();
+            const before = moveEvent.clientY < targetRect.top + targetRect.height / 2;
+            targetTile.parentNode.insertBefore(placeholder, before ? targetTile : targetTile.nextSibling);
+          } else if (targetGrid) {
+            targetGrid.appendChild(placeholder);
+          }
+        };
+
+        const finish = (upEvent) => {
+          upEvent?.preventDefault?.();
+          handle.releasePointerCapture?.(event.pointerId);
+          handle.removeEventListener('pointermove', onMove);
+          handle.removeEventListener('pointerup', finish);
+          handle.removeEventListener('pointercancel', finish);
+          placeholder.parentNode.insertBefore(tile, placeholder);
+          placeholder.remove();
+          ghost.remove();
+          tile.classList.remove('task-drag-source');
+          saveOrder();
+          refreshTimes();
+        };
+
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', finish);
+        handle.addEventListener('pointercancel', finish);
       });
     });
     restoreOrder();
